@@ -1,0 +1,629 @@
+{
+  "info": {
+    "name": "FoundIt - Lost & Found Claim Desk",
+    "_postman_id": "6f1d2c9a-4c1e-4f3a-9b7d-1d2c9a4c1e4f",
+    "description": "FoundIt backend suite. Start Spring Boot on :8080, then Run the whole collection. Tokens are stored automatically ({{studentToken}}, {{staffToken}}).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": { "type": "noauth" },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "studentToken", "value": "" },
+    { "key": "staffToken", "value": "" },
+    { "key": "itemId", "value": "" },
+    { "key": "claimId", "value": "" },
+    { "key": "withdrawItemId", "value": "" },
+    { "key": "withdrawClaimId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Register new student (saves studentToken)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Student\",\n  \"email\": \"student{{$timestamp}}@campus.edu\",\n  \"password\": \"Password123!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('studentToken', body.token);",
+                  "pm.test('returns a JWT', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+                  "pm.test('default role is USER', () => pm.expect(body.role).to.eql('USER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as desk staff (saves staffToken)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"staff@foundit.dev\",\n  \"password\": \"Password123!\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('staffToken', body.token);",
+                  "pm.test('staff role', () => pm.expect(body.role).to.eql('STAFF'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (student token)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('role USER', () => pm.expect(pm.response.json().role).to.eql('USER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong password (401)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"staff@foundit.dev\",\n  \"password\": \"wrong-password\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Items",
+      "item": [
+        {
+          "name": "List items (public)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/items?page=0&size=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "5" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('page shape', () => pm.expect(body.content).to.be.an('array'));",
+                  "pm.test('seed data present', () => pm.expect(body.totalElements).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search found items",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/items?type=FOUND&q=bottle",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items"],
+              "query": [
+                { "key": "type", "value": "FOUND" },
+                { "key": "q", "value": "bottle" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('hidden detail never public', () => {",
+                  "  pm.response.json().content.forEach(i => pm.expect(i.hiddenDetail).to.eql(null));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create found item as STAFF (saves itemId)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{staffToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/items", "host": ["{{baseUrl}}"], "path": ["api", "items"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"FOUND\",\n  \"title\": \"Steel water bottle (Postman test)\",\n  \"description\": \"One litre steel bottle found on a bench near the library.\",\n  \"category\": \"Other\",\n  \"locationName\": \"Central Library\",\n  \"eventDate\": \"2026-11-19\",\n  \"hiddenDetail\": \"dent near the base and a panda sticker\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('itemId', body.id);",
+                  "pm.test('status OPEN', () => pm.expect(body.status).to.eql('OPEN'));",
+                  "pm.test('reporter sees hidden detail', () => pm.expect(body.hiddenDetailRevealed).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get item by id (public, detail hidden)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/items/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "{{itemId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('hidden detail masked', () => pm.expect(pm.response.json().hiddenDetail).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My reports (student)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/my/items?page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "my", "items"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Claims",
+      "item": [
+        {
+          "name": "Submit claim as student (saves claimId)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/items/{{itemId}}/claims",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "{{itemId}}", "claims"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"It has a dent near the base and a panda sticker on the side.\",\n  \"evidenceUrl\": \"https://example.com/photo.jpg\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('claimId', body.id);",
+                  "pm.test('score 0-100', () => pm.expect(body.matchScore).to.be.within(0, 100));",
+                  "pm.test('high confidence on private detail', () => pm.expect(body.matchScore).to.be.above(60));",
+                  "pm.test('pending', () => pm.expect(body.status).to.eql('PENDING'));",
+                  "pm.test('hidden detail not leaked', () => pm.expect(body.itemHiddenDetail).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Claim twice (409 guard)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/items/{{itemId}}/claims",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "{{itemId}}", "claims"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Second attempt on the same item\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('409 Conflict', () => pm.response.to.have.status(409));"] }
+            }
+          ]
+        },
+        {
+          "name": "My claims (student)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/my/claims?page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "my", "claims"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('claim visible with score', () => {",
+                  "  const c = pm.response.json().content[0];",
+                  "  pm.expect(c.matchScore).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Staff desk",
+      "item": [
+        {
+          "name": "Pending queue (ranked by score)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{staffToken}}", "type": "string" }] },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/claims?status=PENDING&page=0&size=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims"],
+              "query": [
+                { "key": "status", "value": "PENDING" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "10" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json().content;",
+                  "pm.test('staff sees private details', () => {",
+                  "  if (items.length) pm.expect(items[0].itemHiddenDetail).to.be.a('string');",
+                  "});",
+                  "pm.test('sorted by score desc', () => {",
+                  "  const scores = items.map(i => i.matchScore);",
+                  "  const sorted = [...scores].sort((a, b) => b - a);",
+                  "  pm.expect(scores).to.eql(sorted);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student cannot read staff queue (403)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/claims?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims"],
+              "query": [{ "key": "status", "value": "PENDING" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('403 Forbidden', () => pm.response.to.have.status(403));"] }
+            }
+          ]
+        },
+        {
+          "name": "Approve claim",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{staffToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/claims/{{claimId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims", "{{claimId}}", "approve"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"note\": \"Matched the private detail exactly.\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('approved', () => pm.expect(pm.response.json().status).to.eql('APPROVED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Item is now CLAIMED",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/items/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "{{itemId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status CLAIMED', () => pm.expect(pm.response.json().status).to.eql('CLAIMED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark item returned",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{staffToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/items/{{itemId}}/return",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "{{itemId}}", "return"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status RETURNED', () => pm.expect(pm.response.json().status).to.eql('RETURNED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Stats",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{staffToken}}", "type": "string" }] },
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/admin/stats", "host": ["{{baseUrl}}"], "path": ["api", "admin", "stats"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('has counters', () => pm.expect(pm.response.json().totalItems).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Withdraw flow",
+      "item": [
+        {
+          "name": "Create second item as staff",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{staffToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/items", "host": ["{{baseUrl}}"], "path": ["api", "items"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"FOUND\",\n  \"title\": \"Blue umbrella (withdraw test)\",\n  \"description\": \"Compact blue umbrella left near the main gate.\",\n  \"category\": \"Other\",\n  \"locationName\": \"Main gate\",\n  \"hiddenDetail\": \"wooden handle with a chip\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('withdrawItemId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student claims it",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/items/{{withdrawItemId}}/claims",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "{{withdrawItemId}}", "claims"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"The handle is wooden and has a chip near the top.\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('withdrawClaimId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Student withdraws it",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/claims/{{withdrawClaimId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "claims", "{{withdrawClaimId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('204 No Content', () => pm.response.to.have.status(204));"] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Negative tests",
+      "item": [
+        {
+          "name": "No token (401)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/my/claims",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "my", "claims"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"] }
+            }
+          ]
+        },
+        {
+          "name": "Unknown item (404)",
+          "auth": { "type": "noauth" },
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/items/999999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "items", "999999"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "exec": ["pm.test('404 Not Found', () => pm.response.to.have.status(404));"] }
+            }
+          ]
+        },
+        {
+          "name": "Validation error (400)",
+          "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] },
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/items", "host": ["{{baseUrl}}"], "path": ["api", "items"] },
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"FOUND\",\n  \"title\": \"\",\n  \"description\": \"\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('field errors returned', () => pm.expect(pm.response.json().details).to.be.an('object'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
