@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { api, apiError } from '../lib/api';
+import { api, apiError, assetUrl } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { ScoreBadge, StatusBadge, TypeBadge } from '../components/Badges';
 import { categoryEmoji, fmtDate, fmtDateTime } from '../lib/format';
@@ -97,7 +97,7 @@ export default function ItemDetail() {
         <article className="card overflow-hidden lg:col-span-2">
           <div className="relative flex h-56 items-center justify-center bg-gradient-to-br from-slate-100 to-slate-50">
             {item.imageUrl ? (
-              <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" />
+              <img src={assetUrl(item.imageUrl)} alt={item.title} className="h-full w-full object-cover" />
             ) : (
               <span className="text-7xl">{categoryEmoji(item.category)}</span>
             )}

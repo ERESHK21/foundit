@@ -1,6 +1,16 @@
 import axios from 'axios';
 
-export const api = axios.create({ baseURL: '/api' });
+// In development this is empty, so requests go to /api and Vite proxies them to
+// localhost:8080. In a deployed build set VITE_API_URL to the backend's origin.
+export const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
+export const api = axios.create({ baseURL: `${API_ORIGIN}/api` });
+
+// Backend returns upload paths like /uploads/x.jpg; prefix them when hosted apart.
+export function assetUrl(path) {
+  if (!path || /^https?:\/\//i.test(path)) return path;
+  return `${API_ORIGIN}${path}`;
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('foundit_token');
